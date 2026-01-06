@@ -10,7 +10,8 @@ import {
 import { SignOutButton, useClerk } from "@clerk/nextjs"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import Link from "next/link"
-import { UserAvatar } from "@/components/UserAvatar"
+import { UserAvatar } from "@/features/users/components/UserAvatar"
+
 
 export function Navbar({
   user,
