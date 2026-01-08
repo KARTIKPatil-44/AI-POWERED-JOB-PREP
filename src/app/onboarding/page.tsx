@@ -1,6 +1,7 @@
-import { getCurrentUser } from "@/services/clerk/lib/getCurrentUser";
+
 import { redirect } from "next/navigation";
 import { OnboardingClient } from "./_client";
+import { getCurrentUser } from "@/services/clerk/lib/getCurrentUser";
 
 export default async function OnboardingPage() {
     const { userId, user } = await getCurrentUser({allData: true })

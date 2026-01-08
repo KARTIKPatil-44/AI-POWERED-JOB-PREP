@@ -14,6 +14,7 @@ import { JobInfoTable } from "@/drizzle/schema"
 import { getJobInfoIdTag } from "@/features/jobInfos/dbCache"
 import { formatExperienceLevel } from "@/features/jobInfos/lib/formatters"
 import { getCurrentUser } from "@/services/clerk/lib/getCurrentUser"
+
 import { and, eq } from "drizzle-orm"
 import { ArrowRightIcon } from "lucide-react"
 import { cacheTag } from "next/dist/server/use-cache/cache-tag"
