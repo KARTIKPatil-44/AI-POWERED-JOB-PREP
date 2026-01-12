@@ -39,7 +39,7 @@ export function StartCall({
     if (chatMetadata?.chatId == null || interviewId == null) {
       return
     }
-    updateInterview(interviewId, {humeChatId:chatMetadata.chatId })
+    updateInterview(interviewId, { humeChatId: chatMetadata.chatId })
   }, [chatMetadata?.chatId, interviewId])
 
   // Sync duration
