@@ -27,6 +27,7 @@ import { ActionButton } from "@/components/ui/action-button"
 
 import { MarkdownRenderer } from "@/components/MarkdownRenderer"
 import { fetchChatMessages } from "@/services/hume/lib/api"
+import { generateInterviewFeedback } from "@/features/interviews/actions"
 
 export default async function InterviewPage({
   params,
@@ -74,7 +75,7 @@ export default async function InterviewPage({
             fallback={<SkeletonButton className="w-32" />}
             result={i =>
               i.feedback == null ? (
-                <ActionButton>
+                <ActionButton action={generateInterviewFeedback.bind(null, i.id)}>
                   Generate Feedback
                 </ActionButton>
               ) : (
