@@ -32,14 +32,18 @@ export function StartCall({
   const [interviewId, setInterviewId] = useState<string | null>(null)
   const durationRef = useRef(callDurationTimestamp)
   const router = useRouter()
-  durationRef.current = callDurationTimestamp
+
+  // keep durationRef up-to-date outside of render
+  useEffect(() => {
+    durationRef.current = callDurationTimestamp
+  }, [callDurationTimestamp])
 
   // Sync chat ID
   useEffect(() => {
     if (chatMetadata?.chatId == null || interviewId == null) {
       return
     }
-    updateInterview(interviewId, { humeChatId: chatMetadata.chatId })
+    updateInterview(interviewId, { humeChatId: chatMetadata.chatId, duration: durationRef.current ?? "00:00:00" })
   }, [chatMetadata?.chatId, interviewId])
 
   // Sync duration

@@ -1,6 +1,8 @@
 import { env } from "@/data/env/server"
 import { HumeClient } from "hume"
-import { ReturnChatEvent } from "hume/api/resources/empathicVoice"
+
+type ReturnChatEvent = unknown
+
 
 export async function fetchChatMessages(humeChatId: string) {
   "use cache"
