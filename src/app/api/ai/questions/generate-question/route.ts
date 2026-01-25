@@ -5,14 +5,11 @@ import {
   QuestionTable,
 } from "@/drizzle/schema"
 import { getJobInfoIdTag } from "@/features/jobInfos/dbCache"
-import { insertQuestion } from "@/features/questions/db"
-
 import { getQuestionJobInfoTag } from "@/features/questions/dbCache"
 import { canCreateQuestion } from "@/features/questions/permissions"
 import { PLAN_LIMIT_MESSAGE } from "@/lib/errorToast"
 import { generateAiQuestion } from "@/services/ai/questions"
 import { getCurrentUser } from "@/services/clerk/lib/getCurrentUser"
-import { createUIMessageStream, createUIMessageStreamResponse } from "ai"
 import { and, asc, eq } from "drizzle-orm"
 import { cacheTag } from "next/dist/server/use-cache/cache-tag"
 import z from "zod"
@@ -50,29 +47,94 @@ export async function POST(req: Request) {
 
   const previousQuestions = await getQuestions(jobInfoId)
 
-  const stream = createUIMessageStream({
-    async execute({ writer }) {
-      const res = generateAiQuestion({
-        previousQuestions,
-        jobInfo,
-        difficulty,
-        onFinish: async question => {
-          const { id } = await insertQuestion({
-            text: question,
-            jobInfoId,
-            difficulty,
-          })
+  try {
+    // Try primary model first
+    let res = generateAiQuestion({
+      previousQuestions,
+      jobInfo,
+      difficulty,
+      // do not persist on the server; client will persist the question after completion
+      onFinish: () => {},
+    })
 
-          // write custom data part to the UI stream (previously writeData)
-          writer.write({ type: "data-custom", id: "question-id", data: { questionId: id } })
-        },
-      })
+    let baseRes
+    let fallbackUsed = false
 
-      writer.merge(res.toUIMessageStream())
-    },
-  })
+    try {
+      baseRes = res.toTextStreamResponse()
+    } catch (err) {
+      // Primary model failed synchronously (likely quota); try fallback
+      console.warn('Primary model failed, attempting fallback', err)
+      const msg = String(err)
+      if (/quota|RESOURCE_EXHAUSTED/i.test(msg)) {
+        fallbackUsed = true
+        res = generateAiQuestion({
+          previousQuestions,
+          jobInfo,
+          difficulty,
+          onFinish: () => {},
+        })
+        baseRes = res.toTextStreamResponse()
+        baseRes.headers.set('x-ai-fallback', 'true')
+      } else {
+        throw err
+      }
+    }
 
-  return createUIMessageStreamResponse({ stream })
+    const baseBody = baseRes.body
+    if (!baseBody) {
+      return new Response("AI did not return content", { status: 500 })
+    }
+
+    const wrapped = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const reader = baseBody.getReader()
+        try {
+          // If we fell back to a smaller model, send a short notice first
+          if (fallbackUsed) {
+            controller.enqueue(new TextEncoder().encode('Notice: results are from a fallback model and may be shorter.\n'))
+          }
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (value) controller.enqueue(value)
+          }
+          controller.close()
+        } catch (err) {
+          console.error('Stream error while generating question', err)
+          const msg = 'AI quota exhausted — please check your billing or try again later.'
+          controller.enqueue(new TextEncoder().encode(msg))
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(wrapped, { headers: baseRes.headers })
+  } catch (err) {
+    console.error('Error creating question stream', err)
+
+    // Detect quota errors from AI and return a 429 so the client can display a clear message
+    const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : null
+    const errStr = String(err) + (errObj ? JSON.stringify(errObj.data ?? errObj.response ?? {}) : '')
+    if (/quota|RESOURCE_EXHAUSTED|generate_content_free_tier_requests/i.test(errStr)) {
+      let msg = 'AI quota exhausted — please check your billing or try again later.'
+      const retryMatch = errStr.match(/Please retry in (\d+(?:\.\d+)?)s/i) || errStr.match(/"retryDelay":"(\d+)s"/i)
+      const headers: Record<string, string> = { "Content-Type": "text/plain; charset=utf-8" }
+      if (retryMatch) {
+        const secs = Math.ceil(Number(retryMatch[1]))
+        msg += ` Please retry in ${secs}s.`
+        headers['Retry-After'] = String(secs)
+      }
+      return new Response(msg, { status: 429, headers })
+    }
+
+    const msg = 'AI is currently unavailable — please try again later.'
+    return new Response(msg, {
+      status: 500,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    })
+  }
 }
 
 async function getQuestions(jobInfoId: string) {

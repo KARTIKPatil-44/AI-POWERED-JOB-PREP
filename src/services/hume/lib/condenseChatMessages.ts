@@ -1,7 +1,18 @@
 import { ConnectionMessage } from "@humeai/voice-react"
-import { JsonMessage, ReturnChatEvent } from "hume/api/resources/empathicVoice"
 
-type Message = JsonMessage | ConnectionMessage | ReturnChatEvent
+// Local lightweight types mirroring the shape we need from Hume messages.
+type JsonMessageLike = {
+  type?: string
+  message?: { content?: string } | undefined
+}
+
+type ReturnChatEventLike = {
+  type?: string
+  messageText?: string | null
+  role?: string
+}
+
+type Message = JsonMessageLike | ConnectionMessage | ReturnChatEventLike
 
 export function condenseChatMessages(messages: Message[]) {
   return messages.reduce((acc, message) => {
@@ -33,7 +44,7 @@ function getJsonMessageData(message: Message) {
 
   return {
     isUser: message.type === "user_message",
-    content: message.message.content,
+    content: (message as JsonMessageLike).message?.content,
   }
 }
 
@@ -44,6 +55,6 @@ function getChatEventData(message: Message) {
 
   return {
     isUser: message.type === "USER_MESSAGE",
-    content: message.messageText,
+    content: (message as ReturnChatEventLike).messageText,
   }
 }

@@ -17,8 +17,21 @@ export async function generateAiInterviewFeedback({
 }) {
   const messages = await fetchChatMessages(humeChatId)
 
+  type ChatEventLike = {
+    type?: string
+    messageText?: string | null
+    role?: string
+    emotionFeatures?: Record<string, number>
+  }
+
+  function isChatEventLike(m: unknown): m is ChatEventLike {
+    const obj = m as Record<string, unknown>
+    return typeof m === "object" && m !== null && ("type" in obj || "messageText" in obj)
+  }
+
   const formattedMessages = messages
     .map(message => {
+      if (!isChatEventLike(message)) return null
       if (message.type !== "USER_MESSAGE" && message.type !== "AGENT_MESSAGE") {
         return null
       }

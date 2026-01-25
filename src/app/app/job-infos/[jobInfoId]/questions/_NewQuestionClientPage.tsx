@@ -64,6 +64,15 @@ function isQuotaError(err: unknown): boolean {
   return false
 }
 
+// Clean AI streamed text by removing any SSE/metadata lines (e.g., `data: {...}`)
+function sanitizeAIText(text: string | null): string | null {
+  if (text == null) return null
+  const lines = text.split(/\r?\n/)
+  const filtered = lines.filter(l => !/^\s*data:\s*/i.test(l) && !/^\s*\[done\]\s*$/i.test(l))
+  const cleaned = filtered.join('\n').trim()
+  return cleaned === '' ? null : cleaned
+}
+
 type Status = "awaiting-answer" | "awaiting-difficulty" | "init"
 
 export function NewQuestionClientPage({
@@ -76,6 +85,9 @@ export function NewQuestionClientPage({
 
   const [questionId, setQuestionId] = useState<string | null>(null)
   const lastDifficultyRef = useRef<QuestionDifficulty | null>(null)
+
+  type AiStatus = { type: 'error' | 'info'; message: string; retryAfter?: number } | null
+  const [aiStatus, setAiStatus] = useState<AiStatus>(null)
 
   const {
     complete: generateQuestion,
@@ -109,13 +121,18 @@ export function NewQuestionClientPage({
       }
     },
     onError: (error: unknown) => {
+      const serverMsg = getErrorMessage(error)
       const isQuota = isQuotaError(error)
       if (isQuota) {
-        const msg = 'AI quota exhausted — please check your billing or try again later.'
+        // If server returned a more specific message (including retry info), show it.
+        const match = serverMsg.match(/Please retry in (\d+(?:\.\d+)?)s/i)
+        const msg = match ? `${serverMsg}` : 'AI quota exhausted — please check your billing or try again later.'
         errorToast(msg)
         setQuestion(msg)
+        const retrySecs = match ? Math.ceil(Number(match[1])) : undefined
+        setAiStatus({ type: 'error', message: msg, retryAfter: retrySecs })
       } else {
-        errorToast(getErrorMessage(error))
+        errorToast(serverMsg)
       }
     },
   })
@@ -132,65 +149,137 @@ export function NewQuestionClientPage({
       setStatus("awaiting-difficulty")
     },
     onError: (error: unknown) => {
+      const serverMsg = getErrorMessage(error)
       const isQuota = isQuotaError(error)
       if (isQuota) {
-        const msg = 'AI quota exhausted — please check your billing or try again later.'
+        const match = serverMsg.match(/Please retry in (\d+(?:\.\d+)?)s/i)
+        const msg = match ? `${serverMsg}` : 'AI quota exhausted — please check your billing or try again later.'
         errorToast(msg)
         setFeedback(msg)
+        const retrySecs = match ? Math.ceil(Number(match[1])) : undefined
+        setAiStatus({ type: 'error', message: msg, retryAfter: retrySecs })
       } else {
-        const msg = getErrorMessage(error)
+        const msg = serverMsg
         errorToast(msg)
         setFeedback(`Error: ${msg}`)
       }
     },
   })
 
+  // Sanitize streamed question and feedback after streaming completes to avoid clearing during generation
+  useEffect(() => {
+    if (isGeneratingQuestion) return
+
+    const cleaned = sanitizeAIText(question)
+    if (cleaned == null) {
+      setQuestion("")
+      return
+    }
+
+    if (cleaned !== question) {
+      setQuestion(cleaned)
+    }
+  }, [isGeneratingQuestion, question, setQuestion])
+
+  // Countdown for AI retry (when quota exceeded)
+  useEffect(() => {
+    if (!aiStatus || typeof aiStatus.retryAfter !== 'number') return
+    if (aiStatus.retryAfter <= 0) {
+      const t = setTimeout(() => setAiStatus(null), 0)
+      return () => clearTimeout(t)
+    }
+
+    const id = setInterval(() => {
+      setAiStatus(prev => {
+        if (!prev || typeof prev.retryAfter !== 'number') return prev
+        if (prev.retryAfter <= 1) return null
+        return { ...prev, retryAfter: prev.retryAfter - 1 }
+      })
+    }, 1000)
+
+    return () => clearInterval(id)
+  }, [aiStatus])
+
+  useEffect(() => {
+    if (isGeneratingFeedback) return
+
+    const cleaned = sanitizeAIText(feedback)
+    if (cleaned == null) {
+      setFeedback("")
+      return
+    }
+
+    if (cleaned !== feedback) {
+      setFeedback(cleaned)
+    }
+  }, [isGeneratingFeedback, feedback, setFeedback])
+
+
+  const disableGenerateButtons = aiStatus?.retryAfter != null && aiStatus.retryAfter > 0
 
   return (
     <div className="flex flex-col items-center gap-4 w-full mx-w-[2000px] mx-auto flex-grow h-screen-header">
-      <div className="container flex gap-4 mt-4 items-center justify-between">
-        <div className="flex-grow basis-0">
-          <BackLink href={`/app/job-infos/${jobInfo.id}`}>
-            {jobInfo.name}
-          </BackLink>
+      <div className="container flex flex-col gap-4 mt-4">
+        {aiStatus && (
+          <div role="alert" className="w-full p-3 rounded-md bg-red-50 border border-red-200 text-red-800 flex items-center justify-between">
+            <div className="text-sm">
+              {aiStatus.message}
+              {typeof aiStatus.retryAfter === 'number' && aiStatus.retryAfter > 0 && (
+                <span className="ml-2 text-xs text-muted-foreground">Retry in {aiStatus.retryAfter}s</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="text-sm text-red-600 underline" onClick={() => setAiStatus(null)}>Dismiss</button>
+            </div>
+          </div>
+        )}
+
+        <div className="container flex gap-4 items-center justify-between">
+          <div className="grow basis-0">
+            <BackLink href={`/app/job-infos/${jobInfo.id}`}>
+              {jobInfo.name}
+            </BackLink>
+          </div>
+          <Controls
+            reset={() => {
+              setStatus("init")
+              setQuestion("")
+              setFeedback("")
+              setAnswer(null)
+              setQuestionId(null)
+              setAiStatus(null)
+            }}
+            disableAnswerButton={
+              answer == null || answer.trim() === "" || (questionId == null && question == null)
+            }
+            status={status}
+            isLoading={isGeneratingFeedback || isGeneratingQuestion}
+            disableGenerateButtons={disableGenerateButtons}
+            generateFeedback={() => {
+              if (answer == null || answer.trim() === "") return
+
+              const payload = questionId != null
+                ? { questionId }
+                : question != null
+                  ? { questionText: question }
+                  : null
+
+              if (payload == null) return
+
+              // ensure the feedback panel opens immediately and shows the loading placeholder
+              setFeedback("")
+              generateFeedback(answer.trim(), { body: payload })
+            }}
+            generateQuestion={difficulty => {
+              lastDifficultyRef.current = difficulty
+              setQuestion("")
+              setFeedback("")
+              setAnswer(null)
+              generateQuestion(difficulty, { body: { jobInfoId: jobInfo.id } })
+            }}
+          />
+          <div className="grow hidden md:block" />
         </div>
-        <Controls
-          reset={() => {
-            setStatus("init")
-            setQuestion("")
-            setFeedback("")
-            setAnswer(null)
-            setQuestionId(null)
-          }}
-          disableAnswerButton={
-            answer == null || answer.trim() === "" || (questionId == null && question == null)
-          }
-          status={status}
-          isLoading={isGeneratingFeedback || isGeneratingQuestion}
-          generateFeedback={() => {
-            if (answer == null || answer.trim() === "") return
-
-            const payload = questionId != null
-              ? { questionId }
-              : question != null
-                ? { questionText: question }
-                : null
-
-            if (payload == null) return
-
-            // ensure the feedback panel opens immediately and shows the loading placeholder
-            setFeedback("")
-            generateFeedback(answer.trim(), { body: payload })
-          }}
-          generateQuestion={difficulty => {
-            lastDifficultyRef.current = difficulty
-            setQuestion("")
-            setFeedback("")
-            setAnswer(null)
-            generateQuestion(difficulty, { body: { jobInfoId: jobInfo.id } })
-          }}
-        />
-        <div className="flex-grow hidden md:block" />
       </div>
       <QuestionContainer
         question={question}
@@ -239,6 +328,8 @@ function QuestionContainer({
     }
   }, [feedback])
 
+
+
   return (
     <ResizablePanelGroup direction="horizontal" className="flex-grow border-t">
       <ResizablePanel id="question-and-feedback" defaultSize={60} minSize={5}>
@@ -249,19 +340,21 @@ function QuestionContainer({
                 <p className="text-base md:text-lg flex items-center justify-center h-full p-6">
                   Get started by selecting a question difficulty above.
                 </p>
-              ) : isQuestionLoading && (!question || question === "") ? (
+              ) : isQuestionLoading ? (
                 <p className="text-base md:text-lg flex items-center justify-center h-full p-6">
                   Generating question... Please wait
                 </p>
+              ) : question && question !== "" ? (
+                <div>
+                  <MarkdownRenderer className="p-6">
+                    {question}
+                  </MarkdownRenderer>
+                  <div ref={questionBottomRef} />
+                </div>
               ) : (
-                question && (
-                  <div>
-                    <MarkdownRenderer className="p-6">
-                      {question}
-                    </MarkdownRenderer>
-                    <div ref={questionBottomRef} />
-                  </div>
-                )
+                <p className="text-base md:text-lg flex items-center justify-center h-full p-6">
+                  No question yet. Select a difficulty to generate one.
+                </p>
               )}
             </ScrollArea>
           </ResizablePanel>
@@ -270,15 +363,15 @@ function QuestionContainer({
               <ResizableHandle withHandle />
               <ResizablePanel id="feedback" defaultSize={30} minSize={5}>
                 <ScrollArea className="h-full min-w-48 *:h-full">
-                  {feedback && feedback !== "" ? (
-                    <div>
-                      <MarkdownRenderer className="p-6">
-                        {feedback}
-                      </MarkdownRenderer>
-                      <div ref={feedbackBottomRef} />
-                    </div>
-                  ) : isFeedbackLoading ? (
-                    <div className="p-6 text-sm text-muted-foreground">Grading... Please wait</div>
+                  {isFeedbackLoading ? (
+                      <div className="p-6 text-sm text-muted-foreground">Grading... Please wait</div>
+                    ) : feedback && feedback !== "" ? (
+                      <div>
+                        <MarkdownRenderer className="p-6">
+                          {feedback}
+                        </MarkdownRenderer>
+                        <div ref={feedbackBottomRef} />
+                      </div>
                   ) : null}
                 </ScrollArea>
               </ResizablePanel>
@@ -306,11 +399,13 @@ function Controls({
   status,
   isLoading,
   disableAnswerButton,
+  disableGenerateButtons,
   generateQuestion,
   generateFeedback,
   reset,
 }: {
   disableAnswerButton: boolean
+  disableGenerateButtons?: boolean
   status: Status
   isLoading: boolean
   generateQuestion: (difficulty: QuestionDifficulty) => void
@@ -342,7 +437,7 @@ function Controls({
           <Button
             key={difficulty}
             size="sm"
-            disabled={isLoading}
+            disabled={isLoading || Boolean(disableGenerateButtons)}
             onClick={() => generateQuestion(difficulty)}
           >
             <LoadingSwap isLoading={isLoading}>

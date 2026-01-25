@@ -116,9 +116,24 @@ export async function POST(req: Request) {
     return new Response(wrapped, { headers: baseRes.headers })
   } catch (err) {
     console.error('Error creating feedback stream', err)
+
+    const errObj = err && typeof err === 'object' ? (err as Record<string, unknown>) : null
+    const errStr = String(err) + (errObj ? JSON.stringify(errObj.data ?? errObj.response ?? {}) : '')
+    if (/quota|RESOURCE_EXHAUSTED|generate_content_free_tier_requests/i.test(errStr)) {
+      let msg = 'AI quota exhausted — please check your billing or try again later.'
+      const retryMatch = errStr.match(/Please retry in (\d+(?:\.\d+)?)s/i) || errStr.match(/"retryDelay":"(\d+)s"/i)
+      const headers: Record<string, string> = { "Content-Type": "text/plain; charset=utf-8" }
+      if (retryMatch) {
+        const secs = Math.ceil(Number(retryMatch[1]))
+        msg += ` Please retry in ${secs}s.`
+        headers['Retry-After'] = String(secs)
+      }
+      return new Response(msg, { status: 429, headers })
+    }
+
     const msg = 'AI is currently unavailable — please try again later.'
     return new Response(msg, {
-      status: 200,
+      status: 500,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     })
   }

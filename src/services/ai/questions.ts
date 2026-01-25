@@ -24,8 +24,8 @@ export function generateAiQuestion({
   onFinish: (question: string) => void
 }) {
   const previousMessages: { role: "user" | "assistant"; content: string }[] = previousQuestions.flatMap(q => [
-    { role: "user", content: q.difficulty },
-    { role: "assistant", content: q.text },
+    { role: "user", content: String(q.difficulty) },
+    { role: "assistant", content: String(q.text) },
   ])
 
   return streamText({
@@ -35,10 +35,18 @@ export function generateAiQuestion({
       ...previousMessages,
       {
         role: "user",
-        content: difficulty,
+        content: String(difficulty),
+      },
+      {
+        role: "user",
+        content: `Please generate one interview question in clear, grammatically correct English for difficulty: ${difficulty}. Return the entire question as a single, self-contained Markdown block in one message — do not stream partial fragments or split lines. If you include examples, put them under an "Examples:" section inside a fenced code block (triple backticks) and use explicit, consistent spacing (for example: "should return -1"). Avoid using inline backticks for simple numbers or punctuation. Do not include the answer.`,
+      },
+      {
+        role: "user",
+        content: `When you provide examples, format them like this:\n\nExamples:\n\`\`\`text\n* findMaximumValue({1, 5, 2, 8, 3}) should return 8\n* findMaximumValue({-10, -1, -5}) should return -1\n* findMaximumValue({}) should return Integer.MIN_VALUE\n\`\`\``,
       },
     ],
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(300),
     system: `You are an AI assistant that creates technical interview questions tailored to a specific job role. Your task is to generate one **realistic and relevant** technical question that matches the skill requirements of the job and aligns with the difficulty level provided by the user.
 
 Job Information:
@@ -47,6 +55,8 @@ Job Information:
 ${jobInfo.title ? `\n- Job Title: \`${jobInfo.title}\`` : ""}
 
 Guidelines:
+- Use clear, grammatical, and professional English. Ensure correct spelling, grammar, punctuation, and capitalization.
+- Do NOT include any metadata, JSON, or transmission markers (for example, lines beginning with "data:" or "[DONE]"). Return only the final question in simple, grammatical English with no extra metadata.
 - The question must reflect the skills and technologies mentioned in the job description.
 - Make sure the question is appropriately scoped for the specified experience level.
 - A difficulty level of "easy", "medium", or "hard" is provided by the user and should be used to tailor the question.
@@ -55,7 +65,7 @@ Guidelines:
 - Return only one question at a time.
 - It is ok to ask a question about just a single part of the job description, such as a specific technology or skill (e.g., if the job description is for a Next.js, Drizzle, and TypeScript developer, you can ask a TypeScript only question).
 - The question should be formatted as markdown.
-- Stop generating output as soon you have provided the full question.`,
+- Stop generating output as soon you have provided the full question`,
   })
 }
 
@@ -71,7 +81,7 @@ export function generateAiQuestionFeedback({
   return streamText({
     model: google(modelName ?? "gemini-2.5-flash"),
     prompt: answer,
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(400),
     system: `You are an expert technical interviewer. Your job is to evaluate the candidate's answer to a technical interview question.
 
 The original question was:

@@ -19,6 +19,7 @@ import { SignOutButton, useClerk } from "@clerk/nextjs"
 import Link from "next/link"
 import { UserAvatar } from "@/features/users/components/UserAvatar"
 import { useParams, usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 
 const navLinks = [
@@ -31,6 +32,13 @@ export function Navbar({ user }: { user: { name: string; imageUrl: string } }) {
   const { openUserProfile } = useClerk()
   const { jobInfoId } = useParams()
   const pathName = usePathname()
+
+  // Render interactive dropdown only after client hydration to avoid SSR/CSR id mismatches
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 0)
+    return () => clearTimeout(t)
+  }, [])
 
   return (
     <nav className="h-header border-b">
@@ -62,23 +70,28 @@ export function Navbar({ user }: { user: { name: string; imageUrl: string } }) {
 
           <ThemeToggle />
 
-          <DropdownMenu>
-            <DropdownMenuTrigger>
-              <UserAvatar user={user} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => openUserProfile()}>
-                <User className="mr-2" />
-                Profile
-              </DropdownMenuItem>
-              <SignOutButton>
-                <DropdownMenuItem>
-                  <LogOut className="mr-2" />
-                  Logout
+          {mounted ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <UserAvatar user={user} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => openUserProfile()}>
+                  <User className="mr-2" />
+                  Profile
                 </DropdownMenuItem>
-              </SignOutButton>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <SignOutButton>
+                  <DropdownMenuItem>
+                    <LogOut className="mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </SignOutButton>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            // render a non-interactive fallback that matches server HTML structure but avoids generated ids
+            <div className="h-8 w-8" aria-hidden />
+          )}
         </div>
       </div>
     </nav>

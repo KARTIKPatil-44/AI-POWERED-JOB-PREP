@@ -4,7 +4,7 @@ import { OnboardingClient } from "./_client";
 import { getCurrentUser } from "@/services/clerk/lib/getCurrentUser";
 
 export default async function OnboardingPage() {
-    const { userId, user } = await getCurrentUser({allData: true })
+    const { userId } = await getCurrentUser({allData: true })
 
     if(userId == null)  return redirect("/")
     if(userId != null) return redirect("/app")
