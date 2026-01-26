@@ -478,7 +478,7 @@ function Testimonials() {
       avatar:
         "https://images.unsplash.com/photo-1494790108755-2616b612b47c?w=64&h=64&fit=crop&crop=face&auto=format&q=80",
       content:
-        "Landr completely transformed my interview preparation. The AI practice sessions felt so realistic that I walked into my Google interview feeling completely confident. Landed the offer on my first try!",
+        "PrepWise completely transformed my interview preparation. The AI practice sessions felt so realistic that I walked into my Google interview fully confident—and landed the offer on my first try!",
       timeToOffer: "3 weeks",
     },
     {
@@ -488,7 +488,7 @@ function Testimonials() {
       avatar:
         "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=face&auto=format&q=80",
       content:
-        "I was struggling with behavioral questions until I found Landr. The AI helped me craft compelling stories and practice my delivery. Got offers from 3 different companies!",
+        "I was struggling with behavioral questions until I found PrepWise. The AI helped me craft compelling stories and sharpen my delivery. I ended up receiving offers from three different companies!",
       timeToOffer: "5 weeks",
     },
     {
@@ -498,7 +498,7 @@ function Testimonials() {
       avatar:
         "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64&h=64&fit=crop&crop=face&auto=format&q=80",
       content:
-        "The resume optimization feature was a game-changer. My callback rate tripled after implementing Landr&apos;s suggestions. Worth every penny and more.",
+        "The resume optimization feature was a game-changer. My callback rate tripled after implementing PrepWise’s suggestions. Worth every penny—and more.",
       timeToOffer: "4 weeks",
     },
     {
@@ -508,7 +508,7 @@ function Testimonials() {
       avatar:
         "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64&h=64&fit=crop&crop=face&auto=format&q=80",
       content:
-        "The technical question practice was incredible. I went from failing coding interviews to acing them. The AI&apos;s feedback helped me identify and fix my weak spots immediately.",
+        "The technical question practice was incredible. I went from failing coding interviews to acing them. The AI’s feedback helped me identify and fix my weak spots immediately.",
       timeToOffer: "2 weeks",
     },
     {
@@ -518,7 +518,7 @@ function Testimonials() {
       avatar:
         "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=64&h=64&fit=crop&crop=face&auto=format&q=80",
       content:
-        "I was career-changing into tech and felt overwhelmed. Landr&apos;s personalized guidance gave me the confidence to pursue design roles. Now I&apos;m living my dream at Figma!",
+        "I was transitioning into a tech career and felt overwhelmed. PrepWise’s personalized guidance gave me the confidence to pursue design roles—and now I’m living my dream at Figma!",
       timeToOffer: "6 weeks",
     },
     {
@@ -528,7 +528,7 @@ function Testimonials() {
       avatar:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=64&h=64&fit=crop&crop=face&auto=format&q=80",
       content:
-        "The salary negotiation tips alone paid for the platform 10x over. I increased my offer by $25K just by following Landr&apos;s guidance. Absolutely worth it!",
+        "The salary negotiation tips alone paid for the platform ten times over. I increased my offer by $25K just by following PrepWise’s guidance—absolutely worth it!",
       timeToOffer: "4 weeks",
     },
   ]
