@@ -1,7 +1,5 @@
 # PrepWise: AI-Powered Job Preparation
 
-[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/KARTIKPatil-44/AI-POWERED-JOB-PREP)
-
 PrepWise is a comprehensive, AI-driven platform designed to help users land their dream jobs. It provides tools for realistic interview practice, resume optimization, and technical skill enhancement, all tailored to specific job descriptions.
 
 ## ✨ Features
